@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/
+
+# Local scratch
+*.log
+tmp/
+scratch/
+
+# Only here in case tooling is added later — the app itself is deliberately
+# dependency-free and has no build step.
+node_modules/
+dist/
+build/
+.cache/
