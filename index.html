@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loan payoff planner</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="page-header">
+  <h1>Loan payoff planner</h1>
+  <p>Indian reducing-balance EMI, projected from wherever your loan is today.</p>
+</header>
+
+<main>
+
+  <div class="two-up">
+
+    <section class="panel" id="panel-original">
+      <h2>Original loan</h2>
+      <div class="fields">
+        <label>Sanctioned amount
+          <input autocomplete="off" id="orig-principal" type="text" inputmode="numeric">
+        </label>
+        <label>Interest rate (% p.a.)
+          <input autocomplete="off" id="orig-rate" type="number" min="0" step="0.05" inputmode="decimal">
+        </label>
+        <label>Tenure
+          <span class="pair">
+            <input autocomplete="off" id="orig-years" type="number" min="0" step="1"><span class="unit">years</span>
+            <input autocomplete="off" id="orig-months" type="number" min="0" max="11" step="1"><span class="unit">months</span>
+          </span>
+        </label>
+        <label>Disbursed on
+          <input autocomplete="off" id="orig-start" type="date">
+        </label>
+        <label>EMI you actually paid
+          <input autocomplete="off" id="orig-emi" type="text" inputmode="numeric">
+          <small>Leave blank for the contractual EMI. Set it higher if you rounded up from day one.</small>
+        </label>
+      </div>
+      <p class="derived" id="orig-derived"></p>
+    </section>
+
+    <section class="panel" id="panel-current">
+      <h2>Where the loan is now</h2>
+      <label class="checkbox">
+        <input autocomplete="off" id="is-fresh" type="checkbox">
+        This is a brand-new loan – project from disbursal
+      </label>
+      <div class="fields">
+        <label>As of
+          <input autocomplete="off" id="cur-date" type="date">
+        </label>
+        <label>Outstanding balance
+          <input autocomplete="off" id="cur-outstanding" type="text" inputmode="numeric">
+          <small>The only figure you need – past ad-hoc prepayments are inferred from it.
+          Leave blank to assume you are exactly on schedule.</small>
+        </label>
+        <label>Current rate (% p.a.)
+          <input autocomplete="off" id="cur-rate" type="number" min="0" step="0.05" inputmode="decimal">
+        </label>
+        <label>Current EMI
+          <input autocomplete="off" id="cur-emi" type="text" inputmode="numeric">
+          <small>Leave blank to carry the original EMI forward.</small>
+        </label>
+      </div>
+      <p class="derived" id="cur-derived"></p>
+
+      <div class="rate-changes">
+        <h3>Expected rate changes</h3>
+        <p class="muted" id="rate-change-note"></p>
+        <ul class="rules" id="rate-change-list"></ul>
+        <button id="add-rate-change">+ Rate change</button>
+      </div>
+    </section>
+
+  </div>
+
+  <section class="panel headline" id="panel-headline" hidden></section>
+
+  <section class="panel">
+    <h2>Scenarios</h2>
+    <p class="muted">
+      Each scenario projects forward from today's outstanding. Months are counted
+      from now – month 1 is your next EMI.
+    </p>
+    <div id="scenario-list"></div>
+    <button id="add-scenario" class="primary">Add scenario</button>
+  </section>
+
+  <section class="panel">
+    <h2>Comparison</h2>
+    <div class="table-wrap">
+      <table id="comparison"></table>
+    </div>
+    <p class="muted">
+      Interest is counted from today onwards. What you have already paid cannot
+      be worked out from a balance alone, so it is left out.
+      <strong>Front-loaded</strong> counts only your extra payments. It is money
+      paid <em>earlier</em>, not money paid on top, which is why
+      <strong>Total outlay</strong> goes down as it goes up.
+    </p>
+  </section>
+
+  <section class="panel">
+    <h2>Balance over time</h2>
+    <canvas id="chart"></canvas>
+    <div id="chart-legend" class="legend"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Schedule</h2>
+    <div class="controls">
+      <label>Scenario
+        <select autocomplete="off" id="schedule-scenario"></select>
+      </label>
+      <span class="radios">
+        <label><input autocomplete="off" type="radio" name="schedule-view" value="yearly" checked> Yearly</label>
+        <label><input autocomplete="off" type="radio" name="schedule-view" value="monthly"> Monthly</label>
+      </span>
+    </div>
+    <div class="table-wrap">
+      <table id="schedule"></table>
+    </div>
+  </section>
+
+  <footer class="page-footer">
+    <p>
+      Monthly reducing balance. The monthly rate is the yearly rate divided by
+      twelve, the way Indian lenders work it out. EMIs are whole rupees, rounded
+      up so the loan finishes within its tenure. The last one is smaller and
+      clears whatever is left.
+    </p>
+  </footer>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
