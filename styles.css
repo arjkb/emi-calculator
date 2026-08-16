@@ -1,294 +1,394 @@
-/* Loan payoff planner – hand-written, no framework.
-   The --c1..--c6 series is read by app.js via getComputedStyle so the chart
-   lines and the table swatches can never drift apart. */
+/* Loan payoff planner – Modernist design system.
+
+   Flat, architectural, set in Archivo. Near-mono red on a light ground, a
+   visible grid, zero corner radius, strong 2px rules. Nothing floats and
+   nothing is decorated: alignment and the strength of the dividers do all the
+   organising.
+
+   Tokens come first and everything below reads from them. The --c1..--c6
+   series is read by app.js through getComputedStyle, so the chart lines and
+   the table swatches cannot drift apart. */
+
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap');
 
 :root {
-  --bg: #f7f7f5;
-  --card: #ffffff;
-  --ink: #1c1c1a;
-  --muted: #6b6b66;
-  --line: #d9d9d4;
-  --accent: #1a5f7a;
-  --good: #1a7a4a;
-  --bad: #a8342a;
-  --best-bg: #e6f2ec;
+  --color-bg: #f3f2f2;
+  --color-surface: #eae9e9;
+  --color-text: #201e1d;
+  --color-accent: #ec3013;
+  --color-divider: color-mix(in srgb, #201e1d 40%, transparent);
 
-  --c1: #6b7280;
-  --c2: #1a5f7a;
-  --c3: #b45309;
-  --c4: #7c3aed;
-  --c5: #0f766e;
-  --c6: #be123c;
+  --color-neutral-600: #7d7979;
+  --color-neutral-700: #605d5d;
+  --color-accent-100: #fff2ef;
+  --color-accent-600: #dd2b0f;
+  --color-accent-700: #ae1800;
+  --color-accent-800: #7c1405;
 
-  --radius: 8px;
+  /* Text at reduced strength, used for labels, help text and axis ticks. */
+  --ink-70: color-mix(in srgb, var(--color-text) 70%, transparent);
+  --ink-55: color-mix(in srgb, var(--color-text) 55%, transparent);
+  --ink-15: color-mix(in srgb, var(--color-text) 15%, transparent);
+
+  --font-heading-weight: 800;
+  --font-body: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --radius-md: 0px;
+
+  /* Chart and swatch series. Grey for the baseline, then accent, ink and the
+     deep accent steps – the mono palette the system calls for. */
+  --c1: #7d7979;
+  --c2: #ec3013;
+  --c3: #201e1d;
+  --c4: #ae1800;
+  --c5: #605d5d;
+  --c6: #7c1405;
+
+  /* Aliases for the canvas drawing code. Kept as plain hex, not color-mix:
+     a canvas strokeStyle has to parse these directly. */
+  --ink: #201e1d;
+  --line: #8e8b8b;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #16161a;
-    --card: #1f1f24;
-    --ink: #e8e8e4;
-    --muted: #9a9a95;
-    --line: #35353c;
-    --accent: #6cb6d4;
-    --good: #6bd39a;
-    --bad: #f08a80;
-    --best-bg: #1e3a2e;
-
-    --c1: #9ca3af;
-    --c2: #6cb6d4;
-    --c3: #f0b357;
-    --c4: #b48ef5;
-    --c5: #4fd1c5;
-    --c6: #f87f8a;
-  }
-}
-
-* { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; }
 
 body {
   margin: 0;
-  padding: 1.5rem 1rem 3rem;
-  background: var(--bg);
-  color: var(--ink);
-  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
 }
 
-main, .page-header {
-  max-width: 1100px;
+.page {
+  max-width: 1220px;
   margin: 0 auto;
+  padding: 48px var(--space-8) 80px;
 }
+
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+/* ---- rules and sections ---- */
+
+.rule-2 {
+  height: 2px;
+  background: var(--color-divider);
+  border: 0;
+  margin: 0;
+}
+
+.section { padding: 28px 0; }
+
+/* ---- page header ---- */
+
+.page-header { margin-bottom: var(--space-6); }
 
 .page-header h1 {
-  margin: 0 0 .25rem;
-  font-size: 1.5rem;
+  font-weight: var(--font-heading-weight);
+  font-size: 32px;
+  letter-spacing: -0.015em;
+  line-height: 1.12;
+  margin: 0 0 var(--space-2);
 }
 
 .page-header p {
-  margin: 0 0 1.5rem;
-  color: var(--muted);
+  font-size: 15px;
+  color: var(--ink-70);
+  margin: 0;
 }
 
+/* Section kickers. Flush left, uppercase, letter-spaced. */
 h2 {
-  margin: 0 0 1rem;
-  font-size: 1rem;
+  font-weight: var(--font-heading-weight);
+  font-size: 13px;
   text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--muted);
+  letter-spacing: 0.08em;
+  color: var(--ink-55);
+  margin: 0 0 18px;
 }
 
-.panel {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 1.25rem;
-  margin-bottom: 1rem;
+h3 {
+  font-weight: var(--font-heading-weight);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-55);
+  margin: 0 0 6px;
 }
+
+.section > p.muted:first-of-type { margin-top: -12px; }
+
+/* ---- the two-up: a vertical rule, not two boxes ---- */
 
 .two-up {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
 }
 
-.panel.disabled .fields {
-  opacity: .4;
-  pointer-events: none;
+.two-up > .col-left {
+  padding: 28px var(--space-8) 28px 0;
+  border-right: 2px solid var(--color-divider);
 }
+
+.two-up > .col-right { padding: 28px 0 28px var(--space-8); }
+
+.col-left h2, .col-right h2 { margin-bottom: 20px; }
 
 /* ---- form fields ---- */
 
-.fields {
-  display: grid;
-  gap: .85rem;
-}
+.field { margin-bottom: 14px; }
 
 label {
   display: block;
-  font-weight: 500;
+  font-size: 12px;
+  color: var(--ink-70);
+  margin-bottom: 5px;
 }
 
-label small {
+small {
   display: block;
-  font-weight: 400;
-  color: var(--muted);
-  font-size: .8rem;
-  margin-top: .25rem;
+  font-size: 12.5px;
+  color: var(--ink-55);
+  line-height: 1.5;
+  margin-top: 6px;
 }
 
+input[type="text"],
 input[type="number"],
 input[type="date"],
-input[type="text"],
 select {
   width: 100%;
-  margin-top: .3rem;
-  padding: .45rem .55rem;
-  font: inherit;
-  color: var(--ink);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  min-height: 36px;
+  padding: 6px 10px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--color-text);
+  caret-color: var(--color-accent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
 }
 
-input:focus, select:focus, button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+input:hover, select:hover {
+  border-color: color-mix(in srgb, var(--color-text) 45%, transparent);
 }
+
+input:focus-visible, select:focus-visible {
+  border-color: var(--color-accent);
+  outline-offset: 0;
+}
+
+/* Amount and rate share a row; the rate is narrow. */
+.row {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: 14px;
+}
+
+.row .grow { flex: 1; }
+.row .narrow { width: 110px; flex-shrink: 0; }
+.row .field, .row > div { margin-bottom: 0; }
 
 .pair {
   display: flex;
+  gap: var(--space-2);
   align-items: center;
-  gap: .4rem;
 }
 
-.pair input { width: 5rem; }
+.pair input { width: 78px; }
 
 .unit {
-  font-weight: 400;
-  color: var(--muted);
-  font-size: .85rem;
+  font-size: 13px;
+  color: var(--ink-55);
 }
 
 label.checkbox {
   display: flex;
   align-items: center;
-  gap: .5rem;
-  font-weight: 400;
-  margin-bottom: 1rem;
+  gap: 9px;
+  margin-bottom: 18px;
+  font-size: 13.5px;
+  color: var(--color-text);
+  cursor: pointer;
 }
 
-label.checkbox input { width: auto; margin: 0; }
+label.checkbox input {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  accent-color: var(--color-accent);
+}
 
 .derived {
-  margin: 1rem 0 0;
-  padding-top: .85rem;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: .9rem;
+  border-top: 1px solid var(--color-divider);
+  padding-top: 14px;
+  margin: 14px 0 0;
+  font-size: 13.5px;
+  color: var(--ink-70);
+  line-height: 1.6;
 }
 
-.derived strong { color: var(--ink); }
+.derived strong { color: var(--color-text); }
+
+.disabled .fields {
+  opacity: 0.4;
+  pointer-events: none;
+}
 
 /* ---- buttons ---- */
 
 button {
-  font: inherit;
-  color: var(--ink);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: .35rem .7rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  padding: 7px 14px;
   cursor: pointer;
 }
 
-button:hover { border-color: var(--accent); }
+button:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+button:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
 
 button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  /* --bg tracks the theme, so this stays readable against the accent in both
-     light (dark accent) and dark (light accent) modes. */
-  color: var(--bg);
-  font-weight: 500;
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border-color: transparent;
+  font-weight: var(--font-heading-weight);
+  font-size: 14px;
+  padding: 9px 18px;
+  margin-top: 18px;
 }
+
+button.primary:hover { background: var(--color-accent-600); }
+button.primary:active { background: var(--color-accent-700); }
 
 button.icon {
   border: none;
   background: none;
-  color: var(--muted);
-  font-size: 1.1rem;
+  color: var(--color-accent);
+  font-weight: var(--font-heading-weight);
+  font-size: 16px;
   line-height: 1;
-  padding: .2rem .4rem;
+  padding: 2px 6px;
+  margin-left: auto;
 }
 
-button.icon:hover { color: var(--bad); }
+button.icon:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
 
-/* ---- headline ---- */
+/* ---- the ahead/behind headline ---- */
 
-.headline p { margin: 0; font-size: 1.05rem; }
-.headline.good { border-left: 4px solid var(--good); }
-.headline.bad  { border-left: 4px solid var(--bad); }
-.headline.good strong { color: var(--good); }
-.headline.bad  strong { color: var(--bad); }
+.headline { padding: 22px 0; }
+.headline p { margin: 0; font-size: 15px; line-height: 1.6; }
+.headline.bad p { color: var(--color-accent-700); }
 
-.good { color: var(--good); }
-.bad  { color: var(--bad); }
-.muted { color: var(--muted); font-size: .9rem; }
+.good { color: var(--color-text); font-weight: 600; }
+.bad { color: var(--color-accent-700); }
+
+.muted {
+  color: var(--ink-70);
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
 
 /* ---- scenarios ---- */
 
+#scenario-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 .scenario {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: .85rem 1rem;
-  margin-bottom: .75rem;
+  background: var(--color-surface);
+  padding: 18px 20px;
 }
 
 .scenario header {
   display: flex;
   align-items: center;
-  gap: .5rem;
+  gap: var(--space-3);
 }
 
 .scenario header .spacer { flex: 1; }
+.scenario header > strong { font-size: 14.5px; font-weight: 700; flex: 1; }
 
 .scenario-name {
+  flex: 1;
+  min-width: 8rem;
   width: auto;
-  min-width: 12rem;
-  margin: 0;
-  font-weight: 600;
+  min-height: 0;
+  padding: 2px 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+}
+
+.scenario-name:hover { border-color: transparent; border-bottom-color: var(--color-divider); }
+.scenario-name:focus-visible {
+  outline: none;
+  border-bottom-color: var(--color-accent);
+}
+
+/* Everything under the header lines up past the swatch. */
+.scenario-summary,
+.scenario > .muted,
+.rules,
+.add-rule {
+  margin-left: 21px;
 }
 
 .scenario-summary {
-  margin: .5rem 0 .75rem;
-  font-size: .9rem;
-  color: var(--muted);
+  margin-top: 10px;
+  margin-bottom: 0;
+  font-size: 13.5px;
+  color: var(--ink-70);
+}
+
+.scenario-summary .good { font-weight: 700; color: var(--color-text); }
+
+.scenario > .muted {
+  margin-top: 10px;
+  margin-bottom: 0;
+  font-size: 13px;
+  color: var(--ink-55);
 }
 
 .swatch {
   display: inline-block;
-  width: .7rem;
-  height: .7rem;
-  border-radius: 2px;
+  width: 9px;
+  height: 9px;
   flex: none;
-  margin-right: .4rem;
-  vertical-align: baseline;
+  background: var(--color-text);
 }
-
-.swatch.dashed { opacity: .5; }
-
-/* Rate changes live on the loan, not on a scenario, so they sit in the
-   current-position panel outside .fields – which keeps them usable when the
-   fresh-loan checkbox greys that group out. */
-.rate-changes {
-  margin-top: 1rem;
-  padding-top: .85rem;
-  border-top: 1px solid var(--line);
-}
-
-.rate-changes h3 {
-  margin: 0 0 .25rem;
-  font-size: .8rem;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--muted);
-}
-
-.rate-changes .muted { margin: 0 0 .5rem; }
-.rate-changes button { font-size: .85rem; }
 
 .rules {
   list-style: none;
-  margin: 0 0 .75rem;
   padding: 0;
+  margin: var(--space-2) 0 0 21px;
 }
 
 .rule {
   display: flex;
   align-items: center;
-  gap: .5rem;
-  padding: .4rem 0;
-  border-top: 1px dashed var(--line);
+  gap: 7px;
+  padding: 9px 0;
+  border-top: 1px dashed var(--color-divider);
 }
 
 .rule-body {
@@ -296,31 +396,48 @@ button.icon:hover { color: var(--bad); }
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: .35rem;
-  font-size: .9rem;
+  gap: 7px;
+  font-size: 13.5px;
 }
 
-.rule input.num {
-  width: 5rem;
-  margin: 0;
-  padding: .2rem .35rem;
+/* Inside a surface-filled card the inputs take the page ground, so they
+   still read as fields. */
+.rule input, .rule select {
+  min-height: 0;
+  padding: 5px 8px;
+  font-size: 13px;
+  background: var(--color-bg);
 }
 
-.rule input.num.wide { width: 7rem; }
-
-.rule select {
-  width: auto;
-  margin: 0;
-  padding: .2rem .35rem;
-}
+.rule input.num { width: 70px; }
+.rule input.num.wide { width: 92px; }
+.rule select { width: auto; }
 
 .add-rule {
   display: flex;
   flex-wrap: wrap;
-  gap: .4rem;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
-.add-rule button { font-size: .85rem; }
+/* ---- expected rate changes ---- */
+
+.rate-changes {
+  border-top: 1px solid var(--color-divider);
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.rate-changes .muted {
+  font-size: 12.5px;
+  color: var(--ink-55);
+  margin-bottom: var(--space-3);
+}
+
+.rate-changes .rules { margin-left: 0; }
+.rate-changes .rule { padding: var(--space-2) 0; font-size: 13px; }
+.rate-changes .rule input, .rate-changes .rule select { background: var(--color-surface); }
+.rate-changes button { margin-top: 10px; }
 
 /* ---- tables ---- */
 
@@ -330,107 +447,249 @@ button.icon:hover { color: var(--bad); }
 }
 
 table {
-  border-collapse: collapse;
   width: 100%;
-  font-size: .9rem;
-  font-variant-numeric: tabular-nums;
+  border-collapse: collapse;
+  font-size: 14px;
 }
 
-th, td {
+#comparison { min-width: 820px; }
+#schedule { min-width: 760px; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+
+thead th {
   text-align: right;
-  padding: .45rem .6rem;
-  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  padding: var(--space-2);
+  border-bottom: 2px solid var(--color-divider);
   white-space: nowrap;
 }
 
-th:first-child, td:first-child { text-align: left; }
+thead th:first-child { text-align: left; }
 
-thead th {
-  font-weight: 500;
-  color: var(--muted);
-  font-size: .8rem;
-  text-transform: uppercase;
-  letter-spacing: .04em;
+/* ---- column tooltips ---- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
-tbody tr:last-child td { border-bottom: none; }
-
-td.best {
-  background: var(--best-bg);
-  font-weight: 600;
+th[data-tip] {
+  position: relative;
+  cursor: help;
 }
+
+/* A dotted underline marks the heading as explainable. */
+th[data-tip]::before {
+  content: "";
+  position: absolute;
+  left: var(--space-2);
+  right: var(--space-2);
+  bottom: 6px;
+  border-bottom: 1px dotted color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+
+th[data-tip]:hover, th[data-tip]:focus-visible {
+  color: var(--color-text);
+}
+
+/* The bubble drops below the heading, so the scroll container that holds
+   wide tables never clips it. */
+th[data-tip]:hover::after,
+th[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 5;
+  width: max-content;
+  max-width: 260px;
+  padding: var(--space-2) 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+  color: var(--color-bg);
+  background: var(--color-text);
+  box-shadow: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
+  pointer-events: none;
+}
+
+/* Right-aligned columns hang their bubble from the right edge so the last
+   column cannot push the table wider. */
+th[data-tip]:hover::after,
+th[data-tip]:focus-visible::after { right: var(--space-2); }
+
+thead th:first-child[data-tip]:hover::after,
+thead th:first-child[data-tip]:focus-visible::after {
+  right: auto;
+  left: var(--space-2);
+}
+
+td {
+  padding: 10px var(--space-2);
+  border-bottom: 1px solid var(--color-divider);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+#schedule td { padding: var(--space-2); }
+
+td:first-child {
+  text-align: left;
+  white-space: normal;
+  max-width: 240px;
+  overflow-wrap: anywhere;
+}
+
+#schedule td:first-child, #schedule th:first-child { width: 96px; white-space: nowrap; }
+
+/* The name cell keeps its swatch on the same line as the label. */
+td .name {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+td .name .swatch { width: 8px; height: 8px; }
+
+/* Best value in a column: a tight block behind the figure, not a full-cell
+   wash. */
+.hl {
+  background: var(--color-accent-100);
+  padding: 3px 7px;
+}
+
+td.emphasis { font-weight: 600; }
+#schedule .dim { color: var(--ink-55); }
+#schedule .strong { font-weight: 600; }
 
 /* ---- chart ---- */
 
-canvas {
-  display: block;
-  width: 100%;
-}
+canvas { display: block; width: 100%; }
 
 .legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
-  margin-top: .75rem;
-  font-size: .85rem;
-  color: var(--muted);
+  gap: 22px;
+  margin-top: var(--space-3);
+  font-size: 12.5px;
+  color: var(--ink-70);
 }
 
-.legend-item { display: flex; align-items: center; }
+.legend-item { display: flex; align-items: center; gap: 7px; }
+
+.legend-item .swatch { width: 16px; height: 2px; }
+
+.legend-item .swatch.dashed {
+  height: 0;
+  background: none;
+  border-top: 1.5px dashed color-mix(in srgb, var(--color-text) 45%, transparent);
+}
 
 /* ---- schedule controls ---- */
 
 .controls {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-.controls > label { min-width: 14rem; }
-.controls select { margin-top: .3rem; }
-
-.radios {
-  display: flex;
-  gap: 1rem;
-  padding-bottom: .45rem;
-}
-
-.radios label {
-  display: flex;
   align-items: center;
-  gap: .35rem;
-  font-weight: 400;
+  gap: 20px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
 }
 
-.radios input { width: auto; margin: 0; }
+.controls select { width: auto; font-size: 13.5px; }
+.controls label { margin-bottom: 0; }
+
+/* Segmented control, built on the radios that are already there. */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--color-divider);
+}
+
+.seg-opt {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.seg-opt + .seg-opt { border-left: 1px solid var(--color-divider); }
+
+.seg-opt input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.seg-opt:has(input:checked) {
+  background: var(--color-accent);
+  color: var(--color-bg);
+  font-weight: 600;
+}
+
+.seg-opt:not(:has(input:checked)):hover {
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+}
+
+.seg-opt:has(input:focus-visible) {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
 
 /* ---- footer ---- */
 
 .page-footer {
-  color: var(--muted);
-  font-size: .85rem;
-  margin-top: 2rem;
+  margin-top: 20px;
+  font-size: 12.5px;
+  color: var(--ink-55);
+  line-height: 1.6;
 }
+
+.page-footer p { margin: 0; }
 
 /* ---- narrow screens ---- */
 
-@media (max-width: 700px) {
-  body { padding: 1rem .75rem 2rem; }
+@media (max-width: 760px) {
+  .page { padding: 28px 20px 56px; }
 
+  .page-header h1 { font-size: 26px; }
+
+  /* The vertical rule becomes a horizontal one. */
   .two-up { grid-template-columns: 1fr; }
 
-  .rule {
-    align-items: flex-start;
-    flex-wrap: wrap;
+  .two-up > .col-left {
+    padding: 0 0 24px;
+    border-right: none;
+    border-bottom: 2px solid var(--color-divider);
   }
 
-  /* Let the name keep a usable width and push the buttons onto their own row
-     rather than squeezing the field down to a few characters. */
+  .two-up > .col-right { padding: 24px 0 0; }
+
+  .row { flex-wrap: wrap; }
+  .row .narrow { width: 100%; }
+
   .scenario header { flex-wrap: wrap; }
   .scenario header .spacer { display: none; }
-  .scenario-name { flex: 1 1 8rem; min-width: 8rem; }
-  .controls { gap: .75rem; }
-  .controls > label { min-width: 0; width: 100%; }
+
+  .controls { gap: var(--space-3); }
+  .controls select { width: 100%; }
 }

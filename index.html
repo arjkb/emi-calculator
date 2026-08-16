@@ -8,64 +8,90 @@
 </head>
 <body>
 
-<header class="page-header">
-  <h1>Loan payoff planner</h1>
-  <p>Indian reducing-balance EMI, projected from wherever your loan is today.</p>
-</header>
+<div class="page">
 
-<main>
+  <header class="page-header">
+    <h1>Loan payoff planner</h1>
+    <p>Indian reducing-balance EMI, projected from wherever your loan is today.</p>
+  </header>
+
+  <hr class="rule-2">
 
   <div class="two-up">
 
-    <section class="panel" id="panel-original">
+    <section class="col-left" id="panel-original">
       <h2>Original loan</h2>
       <div class="fields">
-        <label>Sanctioned amount
-          <input autocomplete="off" id="orig-principal" type="text" inputmode="numeric">
-        </label>
-        <label>Interest rate (% p.a.)
-          <input autocomplete="off" id="orig-rate" type="number" min="0" step="0.05" inputmode="decimal">
-        </label>
-        <label>Tenure
-          <span class="pair">
-            <input autocomplete="off" id="orig-years" type="number" min="0" step="1"><span class="unit">years</span>
-            <input autocomplete="off" id="orig-months" type="number" min="0" max="11" step="1"><span class="unit">months</span>
-          </span>
-        </label>
-        <label>Disbursed on
+        <div class="row">
+          <div class="grow">
+            <label for="orig-principal">Sanctioned amount</label>
+            <input autocomplete="off" id="orig-principal" type="text" inputmode="numeric">
+          </div>
+          <div class="narrow">
+            <label for="orig-rate">Rate (%)</label>
+            <input autocomplete="off" id="orig-rate" type="number" min="0" max="100" step="0.05" inputmode="decimal">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="orig-years">Tenure</label>
+          <div class="pair">
+            <input autocomplete="off" id="orig-years" type="number" min="0" step="1">
+            <span class="unit">years</span>
+            <input autocomplete="off" id="orig-months" type="number" min="0" max="11" step="1">
+            <span class="unit">months</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="orig-start">Disbursed on</label>
           <input autocomplete="off" id="orig-start" type="date">
-        </label>
-        <label>EMI you actually paid
+        </div>
+
+        <div class="field">
+          <label for="orig-emi">EMI you actually paid</label>
           <input autocomplete="off" id="orig-emi" type="text" inputmode="numeric">
           <small>Leave blank for the contractual EMI. Set it higher if you rounded up from day one.</small>
-        </label>
+        </div>
       </div>
       <p class="derived" id="orig-derived"></p>
     </section>
 
-    <section class="panel" id="panel-current">
+    <section class="col-right" id="panel-current">
       <h2>Where the loan is now</h2>
+
       <label class="checkbox">
         <input autocomplete="off" id="is-fresh" type="checkbox">
         This is a brand-new loan – project from disbursal
       </label>
+
       <div class="fields">
-        <label>As of
+        <div class="field">
+          <label for="cur-date">As of</label>
           <input autocomplete="off" id="cur-date" type="date">
-        </label>
-        <label>Outstanding balance
+        </div>
+
+        <div class="field">
+          <label for="cur-outstanding">Outstanding balance</label>
           <input autocomplete="off" id="cur-outstanding" type="text" inputmode="numeric">
           <small>The only figure you need – past ad-hoc prepayments are inferred from it.
           Leave blank to assume you are exactly on schedule.</small>
-        </label>
-        <label>Current rate (% p.a.)
-          <input autocomplete="off" id="cur-rate" type="number" min="0" step="0.05" inputmode="decimal">
-        </label>
-        <label>Current EMI
+        </div>
+
+        <div class="row">
+          <div class="narrow">
+            <label for="cur-rate">Current rate (%)</label>
+            <input autocomplete="off" id="cur-rate" type="number" min="0" max="100" step="0.05" inputmode="decimal">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="cur-emi">Current EMI</label>
           <input autocomplete="off" id="cur-emi" type="text" inputmode="numeric">
           <small>Leave blank to carry the original EMI forward.</small>
-        </label>
+        </div>
       </div>
+
       <p class="derived" id="cur-derived"></p>
 
       <div class="rate-changes">
@@ -78,9 +104,13 @@
 
   </div>
 
-  <section class="panel headline" id="panel-headline" hidden></section>
+  <hr class="rule-2">
 
-  <section class="panel">
+  <section class="headline" id="panel-headline" hidden></section>
+
+  <hr class="rule-2" id="headline-rule" hidden>
+
+  <section class="section">
     <h2>Scenarios</h2>
     <p class="muted">
       Each scenario projects forward from today's outstanding. Months are counted
@@ -90,12 +120,14 @@
     <button id="add-scenario" class="primary">Add scenario</button>
   </section>
 
-  <section class="panel">
+  <hr class="rule-2">
+
+  <section class="section">
     <h2>Comparison</h2>
     <div class="table-wrap">
       <table id="comparison"></table>
     </div>
-    <p class="muted">
+    <p class="page-footer">
       Interest is counted from today onwards. What you have already paid cannot
       be worked out from a balance alone, so it is left out.
       <strong>Front-loaded</strong> counts only your extra payments. It is money
@@ -104,27 +136,31 @@
     </p>
   </section>
 
-  <section class="panel">
+  <hr class="rule-2">
+
+  <section class="section">
     <h2>Balance over time</h2>
     <canvas id="chart"></canvas>
     <div id="chart-legend" class="legend"></div>
   </section>
 
-  <section class="panel">
+  <hr class="rule-2">
+
+  <section class="section">
     <h2>Schedule</h2>
     <div class="controls">
-      <label>Scenario
-        <select autocomplete="off" id="schedule-scenario"></select>
-      </label>
-      <span class="radios">
-        <label><input autocomplete="off" type="radio" name="schedule-view" value="yearly" checked> Yearly</label>
-        <label><input autocomplete="off" type="radio" name="schedule-view" value="monthly"> Monthly</label>
+      <select autocomplete="off" id="schedule-scenario" aria-label="Scenario"></select>
+      <span class="seg">
+        <label class="seg-opt"><input autocomplete="off" type="radio" name="schedule-view" value="yearly" checked> Yearly</label>
+        <label class="seg-opt"><input autocomplete="off" type="radio" name="schedule-view" value="monthly"> Monthly</label>
       </span>
     </div>
     <div class="table-wrap">
       <table id="schedule"></table>
     </div>
   </section>
+
+  <hr class="rule-2">
 
   <footer class="page-footer">
     <p>
@@ -135,7 +171,7 @@
     </p>
   </footer>
 
-</main>
+</div>
 
 <script src="app.js"></script>
 </body>

@@ -23,14 +23,13 @@ function toRupees(paise) {
 }
 
 /**
- * Instalments are whole rupees. Rounding *up* rather than to nearest is
- * deliberate: rounding down leaves a residual of a few paise a month that
- * spills into a 241st instalment on a 240-month loan. Rounding up keeps the
- * loan inside its stated tenure and lets the final instalment come in
- * slightly light, which is how lenders present it.
+ * Instalments are whole rupees, rounded to nearest — the figure a lender
+ * quotes and every other calculator shows. Rounding leaves the schedule a
+ * little short or long of the balance by the end; the final instalment
+ * absorbs that, which is what `target` in buildSchedule is for.
  */
 function roundToRupee(paise) {
-  return Math.ceil(paise / 100 - 1e-6) * 100;
+  return Math.round(paise / 100) * 100;
 }
 
 function monthlyRate(annualPercent) {
@@ -154,6 +153,28 @@ function buildSchedule(opts) {
              months: 0, lastMonth: startMonth, finalEmi: emi, error: null };
   }
 
+  /**
+   * The month the loan must be cleared by.
+   *
+   * A whole-rupee EMI almost never divides the balance exactly. Round ₹50L at
+   * 8.5% over 240 months to the nearest rupee and the true term becomes
+   * 240.0023 months, so paying the instalment strictly would leave about ₹100
+   * trailing into a 241st month. A 240-month loan is 240 months long, so when
+   * the tenure is known (`termMonths`) the instalment at that month absorbs
+   * whatever is left instead. That is what a lender does.
+   *
+   * Without a stated tenure the term is genuinely emergent, so it comes from
+   * the closed form and is recomputed whenever an event moves the balance,
+   * rate or EMI.
+   */
+  var fixedTerm = opts.termMonths != null;
+  var target = startMonth + (fixedTerm ? opts.termMonths : monthsFor(balance, r, emi));
+  var retarget = function (from) {
+    if (fixedTerm) return;
+    var n = monthsFor(balance, r, emi);
+    if (n !== Infinity) target = from + n;
+  };
+
   while (balance > 0) {
     if (rows.length >= MAX_MONTHS) {
       return { rows: rows, error: 'This loan does not close within 100 years. Check the EMI and rate.' };
@@ -171,6 +192,7 @@ function buildSchedule(opts) {
         if (remaining !== Infinity) emi = emiFor(balance, newR, remaining);
       }
       r = newR;
+      retarget(month - 1);
     }
 
     // 2. The instalment.
@@ -187,8 +209,10 @@ function buildSchedule(opts) {
     var opening = balance;
     var payoff = balance + interest;
     var paid, principal;
-    if (emi >= payoff) {
-      // Final instalment: it absorbs the residual rather than overpaying.
+    if (emi >= payoff || month >= target) {
+      // Final instalment. It clears whatever is left, so it can come in a
+      // little light or a little heavy depending on which way the rounding
+      // of the EMI went.
       paid = payoff;
       principal = balance;
     } else {
@@ -213,6 +237,7 @@ function buildSchedule(opts) {
         var keepMonths = monthsFor(balanceBefore, r, emi);
         if (keepMonths !== Infinity) emi = emiFor(balance, r, keepMonths);
       }
+      retarget(month);
     }
 
     totalInterest += interest;
@@ -367,7 +392,8 @@ var state = {
     isFresh: false,
     asOfDate: todayISO(),
     outstanding: null, // blank = track the scheduled balance; see buildModel
-    rate: 8.5,
+    rate: null,        // blank = follow the original loan's rate
+
     emi: null // null = carry the original EMI forward
   },
   // Loan-level, not scenario-level – see buildModel.
@@ -446,7 +472,9 @@ function buildModel() {
                   : outstandingIsAuto ? scheduledBalance
                   : toPaise(c.outstanding);
 
-  var currentRate = c.isFresh ? o.rate : c.rate;
+  // Left blank, the current rate follows the original. Changing the sanction
+  // rate then moves both, instead of leaving a stale figure behind here.
+  var currentRate = (c.isFresh || c.rate == null) ? o.rate : c.rate;
   var currentEmi = c.emi == null ? paidEmi : toPaise(c.emi);
   var aheadBy = scheduledBalance - outstanding;
 
@@ -922,38 +950,44 @@ function renderSummary(model) {
       formatPaise(model.currentEmi) + ' a month this balance takes ' +
       '<strong>' + formatMonths(remaining) + '</strong> more to clear.';
 
+  // The headline sits between two full-width rules, so the rule below it has
+  // to come and go with the block itself.
   var headline = $('panel-headline');
+  var headlineRule = $('headline-rule');
   if (state.current.isFresh) {
     headline.hidden = true;
+    headlineRule.hidden = true;
     return;
   }
   headline.hidden = false;
+  headlineRule.hidden = false;
+
   var ahead = model.aheadBy;
   var scheduled = 'The original schedule put you at ' + formatPaise(model.scheduledBalance) +
                   ' after ' + model.asOfMonth + ' months.';
 
   if (model.outstandingIsAuto) {
-    headline.className = 'panel headline';
+    headline.className = 'headline';
     headline.innerHTML = '<p><strong>Assuming you are exactly on schedule.</strong> ' + scheduled +
       ' Enter your real outstanding balance above to see where you actually stand.</p>';
     return;
   }
   if (model.exceedsPrincipal) {
-    headline.className = 'panel headline bad';
+    headline.className = 'headline bad';
     headline.innerHTML = '<p><strong>That outstanding is more than the sanctioned amount.</strong> ' +
       'Check the figures – unless interest was capitalised during a moratorium, ' +
       'you cannot owe more than you borrowed.</p>';
     return;
   }
   if (Math.abs(ahead) < 100) {
-    headline.className = 'panel headline';
+    headline.className = 'headline';
     headline.innerHTML = '<p><strong>Exactly on schedule.</strong> ' + scheduled + '</p>';
   } else if (ahead > 0) {
-    headline.className = 'panel headline good';
+    headline.className = 'headline';
     headline.innerHTML = '<p><strong>' + formatPaise(ahead) + ' ahead of schedule.</strong> ' +
       scheduled + ' Past prepayments account for the difference.</p>';
   } else {
-    headline.className = 'panel headline bad';
+    headline.className = 'headline bad';
     headline.innerHTML = '<p><strong>' + formatPaise(-ahead) + ' behind schedule.</strong> ' +
       scheduled + '</p>';
   }
@@ -961,13 +995,29 @@ function renderSummary(model) {
 
 /* ---- comparison table -------------------------------------------------- */
 
+/**
+ * A column heading with its explanation. The text is drawn by CSS from
+ * data-tip rather than left to the browser's native `title`, which is slow,
+ * unreliable and unreachable by keyboard or touch. tabindex makes it show on
+ * focus too, and the visually hidden copy is what a screen reader reads.
+ */
+function th(label, explanation) {
+  return '<th tabindex="0" data-tip="' + escapeHtml(explanation) + '">' +
+         escapeHtml(label) +
+         '<span class="sr-only">. ' + escapeHtml(explanation) + '</span>' +
+         '</th>';
+}
+
 function renderComparison(model) {
   var head = '<thead><tr>' +
-    '<th>Scenario</th><th>Closes</th><th>Time saved</th>' +
-    '<th>Interest from here</th><th>Interest saved</th>' +
-    '<th title="Voluntary prepayments only, on top of the EMI">Front-loaded</th>' +
-    '<th title="EMIs plus prepayments – everything that leaves your pocket from here">Total outlay</th>' +
-    '<th title="Interest cancelled per rupee front-loaded">Saved per ₹1</th>' +
+    th('Scenario', 'Each payoff plan you are comparing. Everything is measured against the Do nothing baseline.') +
+    th('Closes', 'The month the last instalment falls under this plan.') +
+    th('Time saved', 'How much sooner the loan closes than it would if you did nothing.') +
+    th('Interest from here', 'Interest still to be paid from today onwards. What you have already paid is not counted.') +
+    th('Interest saved', 'Interest cancelled compared with the Do nothing baseline.') +
+    th('Front-loaded', 'Voluntary prepayments only, on top of the EMI. Money paid earlier, not money paid on top.') +
+    th('Total outlay', 'EMIs plus prepayments. Everything that leaves your pocket from here.') +
+    th('Saved per ₹1', 'Interest cancelled per rupee front-loaded. Use it to rank plans against each other.') +
     '</tr></thead>';
 
   // Best value per column gets highlighted.
@@ -983,25 +1033,29 @@ function renderComparison(model) {
   });
 
   var body = model.results.map(function (res, i) {
-    var name = '<td><span class="swatch" style="background:' + colorFor(i) + '"></span>' +
-               escapeHtml(res.scenario.name) + '</td>';
+    var name = '<td><span class="name">' +
+               '<span class="swatch" style="background:' + colorFor(i) + '"></span>' +
+               '<span>' + escapeHtml(res.scenario.name) + '</span></span></td>';
     if (res.run.error) {
       return '<tr>' + name + '<td colspan="7" class="bad">' + escapeHtml(res.run.error) + '</td></tr>';
     }
     var d = res.delta || { monthsSaved: 0, interestSaved: 0, extraPaid: 0, savedPerRupee: null };
-    var cell = function (value, isBest) {
-      return '<td' + (isBest ? ' class="best"' : '') + '>' + value + '</td>';
+    // The best figure in a column gets a tight tinted block behind it rather
+    // than a full-cell wash.
+    var cell = function (value, isBest, emphasis) {
+      return '<td' + (emphasis ? ' class="emphasis"' : '') + '>' +
+             (isBest ? '<span class="hl">' + value + '</span>' : value) + '</td>';
     };
     return '<tr>' + name +
       '<td>' + monthLabel(model.startDate, res.run.lastMonth) + '</td>' +
       '<td>' + (d.monthsSaved ? formatMonths(d.monthsSaved) : '–') + '</td>' +
       cell(formatPaise(res.run.totalInterest), res.run.totalInterest === best.interest) +
       cell(d.interestSaved ? formatPaise(d.interestSaved) : '–',
-           d.interestSaved > 0 && d.interestSaved === best.saved) +
+           d.interestSaved > 0 && d.interestSaved === best.saved, true) +
       '<td>' + (d.extraPaid ? formatPaise(d.extraPaid) : '–') + '</td>' +
       cell(formatPaise(res.run.totalPaid), res.run.totalPaid === best.outlay) +
       cell(d.savedPerRupee == null ? '–' : '₹' + d.savedPerRupee.toFixed(2),
-           d.savedPerRupee != null && d.savedPerRupee === best.ratio) +
+           d.savedPerRupee != null && d.savedPerRupee === best.ratio, true) +
     '</tr>';
   }).join('');
 
@@ -1048,9 +1102,14 @@ function renderSchedule(model) {
     : aggregateByYear(res.run.rows, model.startDate);
 
   var head = '<thead><tr>' +
-    '<th>' + (state.scheduleView === 'monthly' ? 'Month' : 'Year') + '</th>' +
-    '<th>Opening</th><th>Paid</th><th>Interest</th><th>Principal</th>' +
-    '<th>Extra</th><th>Closing</th><th>Original</th>' +
+    th(state.scheduleView === 'monthly' ? 'Month' : 'Year', 'The period each row covers.') +
+    th('Opening', 'Balance owed at the start of the period.') +
+    th('Paid', 'Instalments paid during the period. The final one comes in light.') +
+    th('Interest', 'Interest charged on the balance during the period.') +
+    th('Principal', 'The part of the instalment that reduces the balance, interest excluded.') +
+    th('Extra', 'Prepayments made on top of the instalment in this period.') +
+    th('Closing', 'Balance left at the end of the period.') +
+    th('Original', 'What the balance would have been at this point on the original schedule.') +
     '</tr></thead>';
 
   var body = rows.map(function (row) {
@@ -1061,9 +1120,9 @@ function renderSchedule(model) {
       '<td>' + formatPaise(row.emi) + '</td>' +
       '<td>' + formatPaise(row.interest) + '</td>' +
       '<td>' + formatPaise(row.principal) + '</td>' +
-      '<td>' + (row.prepayment ? formatPaise(row.prepayment) : '–') + '</td>' +
-      '<td>' + formatPaise(row.closing) + '</td>' +
-      '<td class="muted">' + formatPaise(scheduled) + '</td>' +
+      '<td class="dim">' + (row.prepayment ? formatPaise(row.prepayment) : '–') + '</td>' +
+      '<td class="strong">' + formatPaise(row.closing) + '</td>' +
+      '<td class="dim">' + formatPaise(scheduled) + '</td>' +
     '</tr>';
   }).join('');
 
@@ -1161,31 +1220,40 @@ function drawChart(model) {
   var x = function (month) { return pad.left + (month / maxMonth) * w; };
   var y = function (balance) { return pad.top + h - (balance / maxBalance) * h; };
 
-  // Axes and horizontal gridlines.
-  ctx.strokeStyle = faint;
+  // Faint horizontal gridlines, then the two axes as strong 2px rules.
   ctx.fillStyle = ink;
-  ctx.lineWidth = 1;
-  ctx.font = '11px system-ui, sans-serif';
+  ctx.font = '11px "Archivo", system-ui, sans-serif';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   for (var g = 0; g <= 4; g++) {
     var value = (maxBalance / 4) * g;
     var gy = Math.round(y(value)) + 0.5;
-    ctx.globalAlpha = 0.4;
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.15;
     ctx.beginPath();
     ctx.moveTo(pad.left, gy);
     ctx.lineTo(pad.left + w, gy);
     ctx.stroke();
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = 0.55;
     ctx.fillText(compactINR(value), pad.left - 8, gy);
+    ctx.globalAlpha = 1;
   }
+
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(pad.left, pad.top);
+  ctx.lineTo(pad.left, pad.top + h);
+  ctx.lineTo(pad.left + w, pad.top + h);
+  ctx.stroke();
 
   // Year ticks along the bottom.
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   var yearStep = maxMonth > 180 ? 60 : maxMonth > 60 ? 24 : 12;
   for (var m = 0; m <= maxMonth; m += yearStep) {
-    ctx.globalAlpha = 0.7;
+    ctx.globalAlpha = 0.55;
     ctx.fillText(monthLabel(model.startDate, m), x(m), pad.top + h + 8);
     ctx.globalAlpha = 1;
   }
@@ -1194,7 +1262,8 @@ function drawChart(model) {
   if (model.asOfMonth > 0) {
     ctx.save();
     ctx.strokeStyle = ink;
-    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.5;
     ctx.setLineDash([3, 3]);
     ctx.beginPath();
     ctx.moveTo(x(model.asOfMonth), pad.top);
@@ -1207,7 +1276,7 @@ function drawChart(model) {
   series.forEach(function (s) {
     ctx.save();
     ctx.strokeStyle = s.color;
-    ctx.lineWidth = s.dashed ? 1.5 : 2;
+    ctx.lineWidth = s.dashed ? 1.5 : 2.25;
     if (s.dashed) ctx.setLineDash([5, 4]);
     ctx.beginPath();
     s.points.forEach(function (p, i) {
